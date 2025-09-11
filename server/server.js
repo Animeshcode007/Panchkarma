@@ -31,6 +31,13 @@ app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/practitioners', require('./routes/practitioners'));
 app.use('/api/patients', require('./routes/patients'));
+app.use('/api/assignments', require('./routes/assignments'));
+
+// new public therapies routes
+app.use('/api/therapies', require('./routes/therapies'));
+
+// feedback routes
+app.use('/api/feedbacks', require('./routes/feedback'));
 
 io.use((socket, next) => {
     const token = socket.handshake.auth?.token;

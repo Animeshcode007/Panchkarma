@@ -1,33 +1,26 @@
 import React, { useState } from "react";
 import api from "../api/api";
+import { useToast } from './Toast';
 
-export default function FeedbackForm({
-  appointmentId,
-  practitionerId,
-  onSubmitted,
-}) {
+export default function FeedbackForm({ appointmentId, onSubmitted }) {
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState("");
+  const { showSuccess, showError } = useToast();
 
   async function submit(e) {
     e.preventDefault();
     try {
-      await api.post("/patients/feedback", {
-        appointmentId,
-        rating,
-        comment,
-        practitionerId,
-      });
-      alert("Feedback sent");
+      await api.post("/feedbacks/submit", { appointmentId, rating, comment });
+     showSuccess('Feedback sent');
       setComment("");
       onSubmitted && onSubmitted();
     } catch (err) {
-      alert(err.response?.data?.message || "Submit failed");
+      showError(err.response?.data?.message || 'Submit failed');
     }
   }
 
   return (
-    <form onSubmit={submit} className="p-3 border rounded">
+    <form onSubmit={submit} className="p-3 border rounded mt-2">
       <h4 className="mb-2">Feedback</h4>
       <div className="mb-2">
         <label>Rating</label>

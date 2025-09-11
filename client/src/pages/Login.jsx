@@ -1,12 +1,14 @@
 import React, { useState, useContext } from "react";
 import { AuthContext } from "../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
+import { useToast } from '../components/Toast';
 
 export default function Login() {
   const { login } = useContext(AuthContext);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const nav = useNavigate();
+  const { showError } = useToast();
 
   async function submit(e) {
     e.preventDefault();
@@ -14,7 +16,7 @@ export default function Login() {
       await login(email, password);
       nav("/");
     } catch (err) {
-      alert(err.response?.data?.message || "Login failed");
+      showError(err.response?.data?.message || 'Login failed');
     }
   }
 

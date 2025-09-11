@@ -98,7 +98,14 @@ router.get('/practitioner/schedule', protect, asyncHandler(async (req, res) => {
 // Patient upcoming
 router.get('/patient/upcoming', protect, asyncHandler(async (req, res) => {
     if (req.user.role !== 'patient') return res.status(403).json({ message: 'Only patient' });
-    const appts = await Appointment.find({ patient: req.user._id, status: 'scheduled' }).populate('practitioner therapy').sort('startTime');
+    const appts = await Appointment.find({ patient: req.user._id, status: 'scheduled', startTime: { $gte: new Date() } }).populate('practitioner therapy').sort('startTime');
+    res.json(appts);
+}));
+
+// Patient past appointments (so patients can submit feedback)
+router.get('/patient/past', protect, asyncHandler(async (req, res) => {
+    if (req.user.role !== 'patient') return res.status(403).json({ message: 'Only patient' });
+    const appts = await Appointment.find({ patient: req.user._id, endTime: { $lt: new Date() } }).populate('practitioner therapy').sort('-startTime');
     res.json(appts);
 }));
 
