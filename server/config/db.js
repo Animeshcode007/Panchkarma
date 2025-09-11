@@ -1,15 +1,27 @@
+// server/config/db.js
 const mongoose = require('mongoose');
 
-const connectDB = async (uri) => {
+async function connectDB(mongoUri) {
   try {
-    await mongoose.connect(uri, {
+    if (!mongoUri) {
+      console.error('❌ MONGO_URI is not defined. Make sure you created server/.env and that dotenv is loaded.');
+      // helpful debug logging
+      console.error('process.env.MONGO_URI =>', process.env.MONGO_URI);
+      throw new Error('MONGO_URI missing');
+    }
+    // options recommended
+    const opts = {
       useNewUrlParser: true,
-      useUnifiedTopology: true
-    });
-    console.log('MongoDB connected');
+      useUnifiedTopology: true,
+      // useCreateIndex: true, // mongoose >=6 removed this option
+      // useFindAndModify: false,
+    };
+    await mongoose.connect(mongoUri, opts);
+    console.log('✅ MongoDB connected');
   } catch (err) {
     console.error('MongoDB connection error', err);
-    process.exit(1);
+    // rethrow so nodemon shows crash and you fix config
+    throw err;
   }
 }
 

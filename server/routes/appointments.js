@@ -11,62 +11,70 @@ const { parseISO } = require('date-fns');
 const { protect } = require('../middleware/auth');
 
 // Helper: check overlapping appointments for practitioner
-async function isPractitionerFree(practitionerId, start, end) {
-    const overlapping = await Appointment.findOne({
+async function isPractitionerFree(practitionerId, start, end, excludeAppointmentId = null) {
+    const q = {
         practitioner: practitionerId,
         status: 'scheduled',
         $or: [
             { startTime: { $lt: end }, endTime: { $gt: start } }
         ]
-    });
+    };
+    if (excludeAppointmentId) q._id = { $ne: excludeAppointmentId };
+    const overlapping = await Appointment.findOne(q);
     return !overlapping;
 }
-
 // Patient books appointment
 router.post('/book', protect, asyncHandler(async (req, res) => {
     const user = req.user;
     if (user.role !== 'patient') return res.status(403).json({ message: 'Only patients can book here' });
 
-    const { therapyId, startTimeISO } = req.body;
+    const { therapyId, startTimeISO, practitionerId } = req.body;
     if (!therapyId || !startTimeISO) return res.status(400).json({ message: 'Missing therapy or startTime' });
 
     const therapy = await Therapy.findById(therapyId);
     if (!therapy) return res.status(404).json({ message: 'Therapy not found' });
 
-    const practitionerId = user.assignedPractitioner;
-    if (!practitionerId) return res.status(400).json({ message: 'No practitioner assigned' });
+    // pick practitioner: if provided, use it; otherwise fallback to patient's assignedPractitioner
+    let chosenPractitioner = practitionerId || user.assignedPractitioner;
+    if (!chosenPractitioner) return res.status(400).json({ message: 'No practitioner specified or assigned' });
+
+    const practitionerUser = await User.findById(chosenPractitioner);
+    if (!practitionerUser || practitionerUser.role !== 'practitioner') return res.status(404).json({ message: 'Practitioner not found' });
 
     const start = parseISO(startTimeISO);
+    if (isNaN(start.getTime())) return res.status(400).json({ message: 'Invalid startTimeISO' });
+
     const end = new Date(start.getTime() + therapy.durationMinutes * 60000);
 
-    const free = await isPractitionerFree(practitionerId, start, end);
-    if (!free) return res.status(409).json({ message: 'Slot not available' });
+    const free = await isPractitionerFree(chosenPractitioner, start, end);
+    if (!free) return res.status(409).json({ message: 'Slot not available for selected practitioner' });
 
     const appointment = await Appointment.create({
         patient: user._id,
-        practitioner: practitionerId,
+        practitioner: chosenPractitioner,
         therapy: therapy._id,
         startTime: start,
         endTime: end
     });
 
-    const notifPatient = await Notification.create({
+    // notifications
+    await Notification.create({
         user: user._id,
         title: 'Appointment scheduled',
         message: `Your ${therapy.name} is scheduled at ${start.toISOString()}`,
         data: { appointmentId: appointment._id }
     });
 
-    const notifPract = await Notification.create({
-        user: practitionerId,
+    await Notification.create({
+        user: chosenPractitioner,
         title: 'New appointment',
         message: `New appointment for ${therapy.name} at ${start.toISOString()}`,
         data: { appointmentId: appointment._id }
     });
 
     if (req.io) {
-        req.io.to(user._id.toString()).emit('notification', notifPatient);
-        req.io.to(practitionerId.toString()).emit('notification', notifPract);
+        req.io.to(user._id.toString()).emit('notification', { title: 'Appointment scheduled', message: `Your ${therapy.name} is scheduled at ${start.toISOString()}`, data: { appointmentId: appointment._id } });
+        req.io.to(chosenPractitioner.toString()).emit('notification', { title: 'New appointment', message: `New appointment for ${therapy.name} at ${start.toISOString()}`, data: { appointmentId: appointment._id } });
     }
 
     // schedule reminder 2 hours before
@@ -83,6 +91,31 @@ router.post('/book', protect, asyncHandler(async (req, res) => {
     }
 
     res.json({ appointment });
+}));
+
+router.post('/check-availability', protect, asyncHandler(async (req, res) => {
+    // any authenticated patient can check availability
+    const { practitionerId, startTimeISO, therapyId, durationMinutes } = req.body;
+    if (!practitionerId || !startTimeISO || (!therapyId && !durationMinutes)) {
+        return res.status(400).json({ message: 'practitionerId, startTimeISO and therapyId or durationMinutes required' });
+    }
+
+    const pr = await User.findById(practitionerId);
+    if (!pr || pr.role !== 'practitioner') return res.status(404).json({ message: 'Practitioner not found' });
+
+    let duration = durationMinutes;
+    if (therapyId) {
+        const therapy = await Therapy.findById(therapyId);
+        if (!therapy) return res.status(404).json({ message: 'Therapy not found' });
+        duration = therapy.durationMinutes;
+    }
+
+    const start = parseISO(startTimeISO);
+    if (isNaN(start.getTime())) return res.status(400).json({ message: 'Invalid startTimeISO' });
+    const end = new Date(start.getTime() + duration * 60000);
+
+    const free = await isPractitionerFree(practitionerId, start, end);
+    res.json({ available: free, message: free ? 'Available' : 'Not available' });
 }));
 
 // Practitioner schedule (with optional from/to query)
