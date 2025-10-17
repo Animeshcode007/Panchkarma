@@ -3,6 +3,7 @@ import api from "../api/api";
 import MonthlyCalendar from "../components/MonthlyCalendar";
 import SessionModal from "../components/SessionModal";
 import ProgressChart from "../components/ProgressChart";
+import LogoutButton from "../components/LogoutButton";
 import FeedbackForm from "../components/FeedbackForm";
 import TakeAppointment from "../components/TakeAppointment";
 import { useToast } from "../components/Toast";
@@ -105,6 +106,9 @@ export default function PatientDashboard() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Patient Dashboard</h1>
+        <div>
+          <LogoutButton />
+        </div>
         <div className="flex gap-2">
           <motion.button
             whileTap={{ scale: 0.97 }}

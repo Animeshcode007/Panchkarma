@@ -1,22 +1,32 @@
 import React, { useState, useContext } from "react";
 import { AuthContext } from "../contexts/AuthContext";
-import { useNavigate } from "react-router-dom";
-import { useToast } from '../components/Toast';
+import { useNavigate, useLocation } from "react-router-dom";
+import { useToast } from "../components/Toast";
 
 export default function Login() {
   const { login } = useContext(AuthContext);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const from = location.state?.from?.pathname || "/dashboard";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
   const nav = useNavigate();
   const { showError } = useToast();
 
   async function submit(e) {
     e.preventDefault();
+    setLoading(true);
     try {
+      // this sets token & user in localStorage and updates context
       await login(email, password);
-      nav("/");
+      // navigate to where user originally wanted to go (or /dashboard)
+      navigate(from, { replace: true });
     } catch (err) {
-      showError(err.response?.data?.message || 'Login failed');
+      console.error(err);
+      showError(err.response?.data?.message || "Login failed");
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -40,7 +50,10 @@ export default function Login() {
           type="password"
           className="w-full p-2 mb-4 border"
         />
-        <button className="bg-blue-600 text-white px-4 py-2 rounded">
+        <button
+          onClick={submit}
+          className="bg-blue-600 text-white px-4 py-2 rounded"
+        >
           Login
         </button>
       </form>
